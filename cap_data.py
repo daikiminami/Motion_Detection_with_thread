@@ -1,5 +1,6 @@
-import queue, cv2
+import cv2
 from movie_img import MovieImg
+
 
 class CapData:
     max_video_files = 1024 #static constexpr int
@@ -24,7 +25,7 @@ class CapData:
                     self.video_file_names.append(vfiles[i])
                     self.nvideo += 1
 
-    def cap_function(self):
+    def cap_function(self, queue):
         n = self.nvideo
         print(n)
         if (n > 0):
@@ -40,12 +41,13 @@ class CapData:
                 while True:
                     ret, frame = cap_file.read()
                     if ret:
-                        movie_img = MovieImg(frame, fno = fno, aspect_num = aspect_num, aspect_den = aspect_den)
-                        movie_img.set_attr(fno, aspect_num, aspect_den)
+                        movie_img = MovieImg()
+                        movie_img.set_attr(frame, fno = fno, aspect_num = aspect_num, aspect_den = aspect_den)
+                        queue.put(movie_img)
                         fno += 1
                     else:
                         break
-            print(movie_img.w, movie_img.h, movie_img.fno)
+
 
 
 
