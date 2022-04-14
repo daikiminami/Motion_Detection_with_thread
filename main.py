@@ -1,6 +1,7 @@
 import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(__file__), 'model/PyTorch-YOLOv3/'))
+sys.path.append(os.path.join(os.path.dirname(__file__), 'deepsort/'))
 
 import concurrent.futures
 import queue
@@ -15,6 +16,8 @@ import random
 
 from pytorchyolo import detect, models
 from pytorchyolo.utils.utils import load_classes
+from deep_sort.utils.parser import get_config
+from deep_sort.deep_sort import DeepSort
 
 queue = queue.Queue()
 
@@ -30,17 +33,28 @@ def main(argc, argv):
 
     fourcc = cv2.VideoWriter_fourcc('m', 'p', '4', 'v')
     video = cv2.VideoWriter('video.mp4',fourcc, 30.0, (1920, 1080))
-
     classes = load_classes('model/PyTorch-YOLOv3/data/coco.names')
+
+    cfg = get_config()
+    config_deepsort="deepsort/deep_sort/configs/deep_sort.yaml"
+    cfg.merge_from_file(config_deepsort)
+    deepsort = DeepSort("osnet_ibn_x1_0_MSMT17",
+                        "cpu",
+                        max_dist=cfg.DEEPSORT.MAX_DIST,
+                        max_iou_distance=cfg.DEEPSORT.MAX_IOU_DISTANCE,
+                        max_age=cfg.DEEPSORT.MAX_AGE, n_init=cfg.DEEPSORT.N_INIT, nn_budget=cfg.DEEPSORT.NN_BUDGET,
+                        )
 
     #描画画像の作成
     while queue.qsize() > 0:
       img = queue.get().img
-      boxes = detect.detect_image(model, img)
+      detections = detect.detect_image(model, img)
+      outputs = deepsort.update(detections[:, :4], detections[:, 4], detections[:, 5], img)
+      print(outputs)
 
-      unique_labels = np.unique(boxes[:, -1])
+      unique_labels = np.unique(detections[:, -1])
       n_cls_preds = len(unique_labels)
-      for x1, y1, x2, y2, conf, cls_pred in boxes:
+      for x1, y1 , x2, y2, conf, cls_pred in detections:
         cmap = plt.get_cmap("tab20b")
         colors = [cmap(i) for i in np.linspace(0, 1, n_cls_preds)]
         bbox_colors = random.sample(colors, n_cls_preds)
@@ -61,10 +75,6 @@ def main(argc, argv):
       if cv2.waitKey(1) & 0xFF == ord('q'):
         break
     video.release()
-
-
-
-
 
 if __name__ == '__main__':
     argv = sys.argv
